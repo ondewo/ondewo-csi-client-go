@@ -8,7 +8,7 @@
 
 * Initial release of the ONDEWO CSI (Conversational Speech Interface) gRPC client for Go. The module
   ships the stubs generated from the [ONDEWO CSI API](https://github.com/ondewo/ondewo-csi-api)
-  by version 5.15.0 of the
+  by version 5.15.1 of the
   [ONDEWO Proto Compiler](https://github.com/ondewo/ondewo-proto-compiler): one `*.pb.go` of
   messages and one `*_grpc.pb.go` of service stubs per `.proto` — 40 files from 21 protos, below
   `api/ondewo/{csi,nlu,s2t,t2s}/` — compiled against the `google.golang.org/protobuf` and
