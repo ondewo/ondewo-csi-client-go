@@ -759,7 +759,8 @@ const (
 	SipTrigger_PAUSE SipTrigger_SipTriggerType = 4
 	// transfer
 	SipTrigger_TRANSFER SipTrigger_SipTriggerType = 5
-	// invite to conference call
+	// invite to conference call. NOT IMPLEMENTED: ondewo-csi cannot reach ondewo-vtsi, which owns call
+	// participants. Invite a softphone with the ondewo-vtsi <code>Calls.InviteToCall</code> RPC instead
 	SipTrigger_INVITE SipTrigger_SipTriggerType = 6
 	// play audio
 	SipTrigger_PLAY_AUDIO SipTrigger_SipTriggerType = 7
@@ -1431,7 +1432,17 @@ type ControlStreamResponse struct {
 	// Control status
 	ControlStatus ControlStatus `protobuf:"varint,1,opt,name=control_status,json=controlStatus,proto3,enum=ondewo.csi.ControlStatus" json:"control_status,omitempty"`
 	// Monotonic barge-in epoch/sequence number so control status transitions are correlatable with the <code>S2sStreamResponse</code> <code>turn_epoch</code> and a second barge-in during a resumed remainder can never be coalesced away
-	Epoch         uint64 `protobuf:"varint,2,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	Epoch uint64 `protobuf:"varint,2,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	// <p>Optional. The per-call operator media control level. Set ONLY on media-control messages: pushed when the
+	// level changes (<code>SetCallMediaControl</code>) and sent as the seed on every <code>GetControlStream</code>
+	// connect.</p>
+	//
+	// <p>A message that has this field set is a media-control message and nothing else: a client must handle it
+	// and must NOT read its <code>control_status</code> / <code>epoch</code> as a control status transition. The
+	// server echoes the current control status and epoch in it, but a client that applied that
+	// <code>control_status</code> (e.g. <code>OK</code>) would un-latch a pending <code>BARGE_IN</code>.
+	// Messages without this field keep their meaning unchanged.</p>
+	MediaControl  *CallMediaControlLevel `protobuf:"bytes,3,opt,name=media_control,json=mediaControl,proto3" json:"media_control,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1478,6 +1489,13 @@ func (x *ControlStreamResponse) GetEpoch() uint64 {
 		return x.Epoch
 	}
 	return 0
+}
+
+func (x *ControlStreamResponse) GetMediaControl() *CallMediaControlLevel {
+	if x != nil {
+		return x.MediaControl
+	}
+	return nil
 }
 
 // Request to set control status.
@@ -1581,6 +1599,174 @@ func (x *SetControlStatusResponse) GetNewControlStatus() ControlStatus {
 	return ControlStatus_OK
 }
 
+// <p>Per-call operator media control level, sent by ondewo-sip to <code>SetCallMediaControl</code> and pushed by the
+// server on the control stream (<code>ControlStreamResponse.media_control</code>).</p>
+//
+// <p>It always carries the FULL effective level. It is independent of the bot's own mixer mute that ondewo-csi
+// requests from ondewo-sip with <code>SipMute</code> / <code>SipUnMute</code>.</p>
+type CallMediaControlLevel struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// <p>If <code>true</code>, the bot is muted: no text-to-speech is synthesized for new responses (the NLU turn
+	// still runs), the in-flight utterance is aborted and discarded (never resumed), and soft-timeout fillers,
+	// re-prompts and <code>PLAY_AUDIO</code> triggers produce no audio.</p>
+	BotMuted bool `protobuf:"varint,1,opt,name=bot_muted,json=botMuted,proto3" json:"bot_muted,omitempty"`
+	// <p>If <code>true</code>, the bot stops listening: the caller audio sent to speech-to-text is replaced by muted
+	// zero frames at the capture cadence (the stream stays open and its clock stays aligned with the call), S2T
+	// responses are dropped before barge-in adjudication and before NLU, and the turn, soft and silence
+	// timers are suspended (they restart from zero on resume). Blanked audio is never back-filled.</p>
+	ListeningPaused bool `protobuf:"varint,2,opt,name=listening_paused,json=listeningPaused,proto3" json:"listening_paused,omitempty"`
+	// <p>ondewo-sip's container-lifetime monotonic counter. Never reset per call. The server applies a level only
+	// when this value is strictly greater than the last applied one.</p>
+	Generation uint64 `protobuf:"varint,3,opt,name=generation,proto3" json:"generation,omitempty"`
+	// <p>Bounded reason token for logs and telemetry: <code>operator</code>, <code>participant</code>,
+	// <code>takeover</code> or <code>resync</code>.</p>
+	Reason        string `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CallMediaControlLevel) Reset() {
+	*x = CallMediaControlLevel{}
+	mi := &file_ondewo_csi_conversation_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CallMediaControlLevel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CallMediaControlLevel) ProtoMessage() {}
+
+func (x *CallMediaControlLevel) ProtoReflect() protoreflect.Message {
+	mi := &file_ondewo_csi_conversation_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CallMediaControlLevel.ProtoReflect.Descriptor instead.
+func (*CallMediaControlLevel) Descriptor() ([]byte, []int) {
+	return file_ondewo_csi_conversation_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CallMediaControlLevel) GetBotMuted() bool {
+	if x != nil {
+		return x.BotMuted
+	}
+	return false
+}
+
+func (x *CallMediaControlLevel) GetListeningPaused() bool {
+	if x != nil {
+		return x.ListeningPaused
+	}
+	return false
+}
+
+func (x *CallMediaControlLevel) GetGeneration() uint64 {
+	if x != nil {
+		return x.Generation
+	}
+	return 0
+}
+
+func (x *CallMediaControlLevel) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+// <p>Response of <code>SetCallMediaControl</code>.</p>
+type SetCallMediaControlResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// <p>The level the server holds after this request.</p>
+	Applied *CallMediaControlLevel `protobuf:"bytes,1,opt,name=applied,proto3" json:"applied,omitempty"`
+	// <p><code>true</code> if the effective level changed.</p>
+	Changed bool `protobuf:"varint,2,opt,name=changed,proto3" json:"changed,omitempty"`
+	// <p><code>true</code> if the request's generation was not greater than the last applied generation. The
+	// request was ignored.</p>
+	Stale bool `protobuf:"varint,3,opt,name=stale,proto3" json:"stale,omitempty"`
+	// <p><code>true</code> while an utterance is still draining to the caller.</p>
+	BotPlaybackInFlight bool `protobuf:"varint,4,opt,name=bot_playback_in_flight,json=botPlaybackInFlight,proto3" json:"bot_playback_in_flight,omitempty"`
+	// <p>Empty when the level was applied. Otherwise a stable refusal token: <code>amd-in-progress</code>
+	// (<code>listening_paused</code> refused during the answering-machine-detection window).</p>
+	RefusalReason string `protobuf:"bytes,5,opt,name=refusal_reason,json=refusalReason,proto3" json:"refusal_reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetCallMediaControlResponse) Reset() {
+	*x = SetCallMediaControlResponse{}
+	mi := &file_ondewo_csi_conversation_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetCallMediaControlResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetCallMediaControlResponse) ProtoMessage() {}
+
+func (x *SetCallMediaControlResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ondewo_csi_conversation_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetCallMediaControlResponse.ProtoReflect.Descriptor instead.
+func (*SetCallMediaControlResponse) Descriptor() ([]byte, []int) {
+	return file_ondewo_csi_conversation_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *SetCallMediaControlResponse) GetApplied() *CallMediaControlLevel {
+	if x != nil {
+		return x.Applied
+	}
+	return nil
+}
+
+func (x *SetCallMediaControlResponse) GetChanged() bool {
+	if x != nil {
+		return x.Changed
+	}
+	return false
+}
+
+func (x *SetCallMediaControlResponse) GetStale() bool {
+	if x != nil {
+		return x.Stale
+	}
+	return false
+}
+
+func (x *SetCallMediaControlResponse) GetBotPlaybackInFlight() bool {
+	if x != nil {
+		return x.BotPlaybackInFlight
+	}
+	return false
+}
+
+func (x *SetCallMediaControlResponse) GetRefusalReason() string {
+	if x != nil {
+		return x.RefusalReason
+	}
+	return ""
+}
+
 // A condition message with its type and value.
 // A Condition can be of various types.
 // Example of a JSON how to invoke a control message via ONDEWO RABBITMQ service:
@@ -1631,7 +1817,7 @@ type Condition struct {
 
 func (x *Condition) Reset() {
 	*x = Condition{}
-	mi := &file_ondewo_csi_conversation_proto_msgTypes[12]
+	mi := &file_ondewo_csi_conversation_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1643,7 +1829,7 @@ func (x *Condition) String() string {
 func (*Condition) ProtoMessage() {}
 
 func (x *Condition) ProtoReflect() protoreflect.Message {
-	mi := &file_ondewo_csi_conversation_proto_msgTypes[12]
+	mi := &file_ondewo_csi_conversation_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1656,7 +1842,7 @@ func (x *Condition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Condition.ProtoReflect.Descriptor instead.
 func (*Condition) Descriptor() ([]byte, []int) {
-	return file_ondewo_csi_conversation_proto_rawDescGZIP(), []int{12}
+	return file_ondewo_csi_conversation_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Condition) GetType() ConditionType {
@@ -1705,7 +1891,7 @@ type ControlMessageServiceParameters struct {
 
 func (x *ControlMessageServiceParameters) Reset() {
 	*x = ControlMessageServiceParameters{}
-	mi := &file_ondewo_csi_conversation_proto_msgTypes[13]
+	mi := &file_ondewo_csi_conversation_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1717,7 +1903,7 @@ func (x *ControlMessageServiceParameters) String() string {
 func (*ControlMessageServiceParameters) ProtoMessage() {}
 
 func (x *ControlMessageServiceParameters) ProtoReflect() protoreflect.Message {
-	mi := &file_ondewo_csi_conversation_proto_msgTypes[13]
+	mi := &file_ondewo_csi_conversation_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1730,7 +1916,7 @@ func (x *ControlMessageServiceParameters) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlMessageServiceParameters.ProtoReflect.Descriptor instead.
 func (*ControlMessageServiceParameters) Descriptor() ([]byte, []int) {
-	return file_ondewo_csi_conversation_proto_rawDescGZIP(), []int{13}
+	return file_ondewo_csi_conversation_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ControlMessageServiceParameters) GetConfig() isControlMessageServiceParameters_Config {
@@ -1873,7 +2059,7 @@ type ControlMessage struct {
 
 func (x *ControlMessage) Reset() {
 	*x = ControlMessage{}
-	mi := &file_ondewo_csi_conversation_proto_msgTypes[14]
+	mi := &file_ondewo_csi_conversation_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1885,7 +2071,7 @@ func (x *ControlMessage) String() string {
 func (*ControlMessage) ProtoMessage() {}
 
 func (x *ControlMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_ondewo_csi_conversation_proto_msgTypes[14]
+	mi := &file_ondewo_csi_conversation_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1898,7 +2084,7 @@ func (x *ControlMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlMessage.ProtoReflect.Descriptor instead.
 func (*ControlMessage) Descriptor() ([]byte, []int) {
-	return file_ondewo_csi_conversation_proto_rawDescGZIP(), []int{14}
+	return file_ondewo_csi_conversation_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ControlMessage) GetService() ControlMessageServiceName {
@@ -1984,15 +2170,29 @@ const file_ondewo_csi_conversation_proto_rawDesc = "" +
 	"nlu_status\x18\x02 \x01(\v2\x12.google.rpc.StatusR\tnluStatus\x121\n" +
 	"\n" +
 	"t2s_status\x18\x03 \x01(\v2\x12.google.rpc.StatusR\tt2sStatus\"\x16\n" +
-	"\x14ControlStreamRequest\"o\n" +
+	"\x14ControlStreamRequest\"\xb7\x01\n" +
 	"\x15ControlStreamResponse\x12@\n" +
 	"\x0econtrol_status\x18\x01 \x01(\x0e2\x19.ondewo.csi.ControlStatusR\rcontrolStatus\x12\x14\n" +
-	"\x05epoch\x18\x02 \x01(\x04R\x05epoch\"[\n" +
+	"\x05epoch\x18\x02 \x01(\x04R\x05epoch\x12F\n" +
+	"\rmedia_control\x18\x03 \x01(\v2!.ondewo.csi.CallMediaControlLevelR\fmediaControl\"[\n" +
 	"\x17SetControlStatusRequest\x12@\n" +
 	"\x0econtrol_status\x18\x01 \x01(\x0e2\x19.ondewo.csi.ControlStatusR\rcontrolStatus\"\xac\x01\n" +
 	"\x18SetControlStatusResponse\x12G\n" +
 	"\x12old_control_status\x18\x01 \x01(\x0e2\x19.ondewo.csi.ControlStatusR\x10oldControlStatus\x12G\n" +
-	"\x12new_control_status\x18\x02 \x01(\x0e2\x19.ondewo.csi.ControlStatusR\x10newControlStatus\"P\n" +
+	"\x12new_control_status\x18\x02 \x01(\x0e2\x19.ondewo.csi.ControlStatusR\x10newControlStatus\"\x97\x01\n" +
+	"\x15CallMediaControlLevel\x12\x1b\n" +
+	"\tbot_muted\x18\x01 \x01(\bR\bbotMuted\x12)\n" +
+	"\x10listening_paused\x18\x02 \x01(\bR\x0flisteningPaused\x12\x1e\n" +
+	"\n" +
+	"generation\x18\x03 \x01(\x04R\n" +
+	"generation\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\"\xe6\x01\n" +
+	"\x1bSetCallMediaControlResponse\x12;\n" +
+	"\aapplied\x18\x01 \x01(\v2!.ondewo.csi.CallMediaControlLevelR\aapplied\x12\x18\n" +
+	"\achanged\x18\x02 \x01(\bR\achanged\x12\x14\n" +
+	"\x05stale\x18\x03 \x01(\bR\x05stale\x123\n" +
+	"\x16bot_playback_in_flight\x18\x04 \x01(\bR\x13botPlaybackInFlight\x12%\n" +
+	"\x0erefusal_reason\x18\x05 \x01(\tR\rrefusalReason\"P\n" +
 	"\tCondition\x12-\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x19.ondewo.csi.ConditionTypeR\x04type\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\"\xec\x03\n" +
@@ -2071,7 +2271,7 @@ const file_ondewo_csi_conversation_proto_rawDesc = "" +
 	"\timmediate\x10\x01\x12\f\n" +
 	"\bduration\x10\x02\x12\f\n" +
 	"\bdatetime\x10\x03\x12\x10\n" +
-	"\finteractions\x10\x042\xfa\x05\n" +
+	"\finteractions\x10\x042\xdf\x06\n" +
 	"\rConversations\x12F\n" +
 	"\x11CreateS2sPipeline\x12\x17.ondewo.csi.S2sPipeline\x1a\x16.google.protobuf.Empty\"\x00\x12F\n" +
 	"\x0eGetS2sPipeline\x12\x19.ondewo.csi.S2sPipelineId\x1a\x17.ondewo.csi.S2sPipeline\"\x00\x12F\n" +
@@ -2081,7 +2281,8 @@ const file_ondewo_csi_conversation_proto_rawDesc = "" +
 	"\tS2sStream\x12\x1c.ondewo.csi.S2sStreamRequest\x1a\x1d.ondewo.csi.S2sStreamResponse\"\x00(\x010\x01\x12X\n" +
 	"\x13CheckUpstreamHealth\x12\x16.google.protobuf.Empty\x1a'.ondewo.csi.CheckUpstreamHealthResponse\"\x00\x12[\n" +
 	"\x10GetControlStream\x12 .ondewo.csi.ControlStreamRequest\x1a!.ondewo.csi.ControlStreamResponse\"\x000\x01\x12_\n" +
-	"\x10SetControlStatus\x12#.ondewo.csi.SetControlStatusRequest\x1a$.ondewo.csi.SetControlStatusResponse\"\x00b\x06proto3"
+	"\x10SetControlStatus\x12#.ondewo.csi.SetControlStatusRequest\x1a$.ondewo.csi.SetControlStatusResponse\"\x00\x12c\n" +
+	"\x13SetCallMediaControl\x12!.ondewo.csi.CallMediaControlLevel\x1a'.ondewo.csi.SetCallMediaControlResponse\"\x00b\x06proto3"
 
 var (
 	file_ondewo_csi_conversation_proto_rawDescOnce sync.Once
@@ -2096,7 +2297,7 @@ func file_ondewo_csi_conversation_proto_rawDescGZIP() []byte {
 }
 
 var file_ondewo_csi_conversation_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_ondewo_csi_conversation_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_ondewo_csi_conversation_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_ondewo_csi_conversation_proto_goTypes = []any{
 	(ControlStatus)(0),                      // 0: ondewo.csi.ControlStatus
 	(ControlMessageServiceName)(0),          // 1: ondewo.csi.ControlMessageServiceName
@@ -2115,64 +2316,70 @@ var file_ondewo_csi_conversation_proto_goTypes = []any{
 	(*ControlStreamResponse)(nil),           // 14: ondewo.csi.ControlStreamResponse
 	(*SetControlStatusRequest)(nil),         // 15: ondewo.csi.SetControlStatusRequest
 	(*SetControlStatusResponse)(nil),        // 16: ondewo.csi.SetControlStatusResponse
-	(*Condition)(nil),                       // 17: ondewo.csi.Condition
-	(*ControlMessageServiceParameters)(nil), // 18: ondewo.csi.ControlMessageServiceParameters
-	(*ControlMessage)(nil),                  // 19: ondewo.csi.ControlMessage
-	(*nlu.DetectIntentResponse)(nil),        // 20: ondewo.nlu.DetectIntentResponse
-	(*t2s.SynthesizeResponse)(nil),          // 21: ondewo.t2s.SynthesizeResponse
-	(*structpb.Struct)(nil),                 // 22: google.protobuf.Struct
-	(*status.Status)(nil),                   // 23: google.rpc.Status
-	(*t2s.RequestConfig)(nil),               // 24: ondewo.t2s.RequestConfig
-	(*s2t.TranscribeRequestConfig)(nil),     // 25: ondewo.s2t.TranscribeRequestConfig
-	(*nlu.Context)(nil),                     // 26: ondewo.nlu.Context
-	(*emptypb.Empty)(nil),                   // 27: google.protobuf.Empty
+	(*CallMediaControlLevel)(nil),           // 17: ondewo.csi.CallMediaControlLevel
+	(*SetCallMediaControlResponse)(nil),     // 18: ondewo.csi.SetCallMediaControlResponse
+	(*Condition)(nil),                       // 19: ondewo.csi.Condition
+	(*ControlMessageServiceParameters)(nil), // 20: ondewo.csi.ControlMessageServiceParameters
+	(*ControlMessage)(nil),                  // 21: ondewo.csi.ControlMessage
+	(*nlu.DetectIntentResponse)(nil),        // 22: ondewo.nlu.DetectIntentResponse
+	(*t2s.SynthesizeResponse)(nil),          // 23: ondewo.t2s.SynthesizeResponse
+	(*structpb.Struct)(nil),                 // 24: google.protobuf.Struct
+	(*status.Status)(nil),                   // 25: google.rpc.Status
+	(*t2s.RequestConfig)(nil),               // 26: ondewo.t2s.RequestConfig
+	(*s2t.TranscribeRequestConfig)(nil),     // 27: ondewo.s2t.TranscribeRequestConfig
+	(*nlu.Context)(nil),                     // 28: ondewo.nlu.Context
+	(*emptypb.Empty)(nil),                   // 29: google.protobuf.Empty
 }
 var file_ondewo_csi_conversation_proto_depIdxs = []int32{
 	5,  // 0: ondewo.csi.ListS2sPipelinesResponse.pipelines:type_name -> ondewo.csi.S2sPipeline
-	20, // 1: ondewo.csi.S2sStreamResponse.detect_intent_response:type_name -> ondewo.nlu.DetectIntentResponse
-	21, // 2: ondewo.csi.S2sStreamResponse.synthesize_response:type_name -> ondewo.t2s.SynthesizeResponse
+	22, // 1: ondewo.csi.S2sStreamResponse.detect_intent_response:type_name -> ondewo.nlu.DetectIntentResponse
+	23, // 2: ondewo.csi.S2sStreamResponse.synthesize_response:type_name -> ondewo.t2s.SynthesizeResponse
 	11, // 3: ondewo.csi.S2sStreamResponse.sip_trigger:type_name -> ondewo.csi.SipTrigger
 	4,  // 4: ondewo.csi.SipTrigger.type:type_name -> ondewo.csi.SipTrigger.SipTriggerType
-	22, // 5: ondewo.csi.SipTrigger.content:type_name -> google.protobuf.Struct
-	23, // 6: ondewo.csi.CheckUpstreamHealthResponse.s2t_status:type_name -> google.rpc.Status
-	23, // 7: ondewo.csi.CheckUpstreamHealthResponse.nlu_status:type_name -> google.rpc.Status
-	23, // 8: ondewo.csi.CheckUpstreamHealthResponse.t2s_status:type_name -> google.rpc.Status
+	24, // 5: ondewo.csi.SipTrigger.content:type_name -> google.protobuf.Struct
+	25, // 6: ondewo.csi.CheckUpstreamHealthResponse.s2t_status:type_name -> google.rpc.Status
+	25, // 7: ondewo.csi.CheckUpstreamHealthResponse.nlu_status:type_name -> google.rpc.Status
+	25, // 8: ondewo.csi.CheckUpstreamHealthResponse.t2s_status:type_name -> google.rpc.Status
 	0,  // 9: ondewo.csi.ControlStreamResponse.control_status:type_name -> ondewo.csi.ControlStatus
-	0,  // 10: ondewo.csi.SetControlStatusRequest.control_status:type_name -> ondewo.csi.ControlStatus
-	0,  // 11: ondewo.csi.SetControlStatusResponse.old_control_status:type_name -> ondewo.csi.ControlStatus
-	0,  // 12: ondewo.csi.SetControlStatusResponse.new_control_status:type_name -> ondewo.csi.ControlStatus
-	3,  // 13: ondewo.csi.Condition.type:type_name -> ondewo.csi.ConditionType
-	24, // 14: ondewo.csi.ControlMessageServiceParameters.t2s_config:type_name -> ondewo.t2s.RequestConfig
-	25, // 15: ondewo.csi.ControlMessageServiceParameters.s2t_config:type_name -> ondewo.s2t.TranscribeRequestConfig
-	26, // 16: ondewo.csi.ControlMessageServiceParameters.context:type_name -> ondewo.nlu.Context
-	17, // 17: ondewo.csi.ControlMessageServiceParameters.condition_start:type_name -> ondewo.csi.Condition
-	17, // 18: ondewo.csi.ControlMessageServiceParameters.condition_end:type_name -> ondewo.csi.Condition
-	1,  // 19: ondewo.csi.ControlMessage.service:type_name -> ondewo.csi.ControlMessageServiceName
-	2,  // 20: ondewo.csi.ControlMessage.method:type_name -> ondewo.csi.ControlMessageServiceMethod
-	18, // 21: ondewo.csi.ControlMessage.parameters:type_name -> ondewo.csi.ControlMessageServiceParameters
-	5,  // 22: ondewo.csi.Conversations.CreateS2sPipeline:input_type -> ondewo.csi.S2sPipeline
-	6,  // 23: ondewo.csi.Conversations.GetS2sPipeline:input_type -> ondewo.csi.S2sPipelineId
-	5,  // 24: ondewo.csi.Conversations.UpdateS2sPipeline:input_type -> ondewo.csi.S2sPipeline
-	6,  // 25: ondewo.csi.Conversations.DeleteS2sPipeline:input_type -> ondewo.csi.S2sPipelineId
-	7,  // 26: ondewo.csi.Conversations.ListS2sPipelines:input_type -> ondewo.csi.ListS2sPipelinesRequest
-	9,  // 27: ondewo.csi.Conversations.S2sStream:input_type -> ondewo.csi.S2sStreamRequest
-	27, // 28: ondewo.csi.Conversations.CheckUpstreamHealth:input_type -> google.protobuf.Empty
-	13, // 29: ondewo.csi.Conversations.GetControlStream:input_type -> ondewo.csi.ControlStreamRequest
-	15, // 30: ondewo.csi.Conversations.SetControlStatus:input_type -> ondewo.csi.SetControlStatusRequest
-	27, // 31: ondewo.csi.Conversations.CreateS2sPipeline:output_type -> google.protobuf.Empty
-	5,  // 32: ondewo.csi.Conversations.GetS2sPipeline:output_type -> ondewo.csi.S2sPipeline
-	27, // 33: ondewo.csi.Conversations.UpdateS2sPipeline:output_type -> google.protobuf.Empty
-	27, // 34: ondewo.csi.Conversations.DeleteS2sPipeline:output_type -> google.protobuf.Empty
-	8,  // 35: ondewo.csi.Conversations.ListS2sPipelines:output_type -> ondewo.csi.ListS2sPipelinesResponse
-	10, // 36: ondewo.csi.Conversations.S2sStream:output_type -> ondewo.csi.S2sStreamResponse
-	12, // 37: ondewo.csi.Conversations.CheckUpstreamHealth:output_type -> ondewo.csi.CheckUpstreamHealthResponse
-	14, // 38: ondewo.csi.Conversations.GetControlStream:output_type -> ondewo.csi.ControlStreamResponse
-	16, // 39: ondewo.csi.Conversations.SetControlStatus:output_type -> ondewo.csi.SetControlStatusResponse
-	31, // [31:40] is the sub-list for method output_type
-	22, // [22:31] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	17, // 10: ondewo.csi.ControlStreamResponse.media_control:type_name -> ondewo.csi.CallMediaControlLevel
+	0,  // 11: ondewo.csi.SetControlStatusRequest.control_status:type_name -> ondewo.csi.ControlStatus
+	0,  // 12: ondewo.csi.SetControlStatusResponse.old_control_status:type_name -> ondewo.csi.ControlStatus
+	0,  // 13: ondewo.csi.SetControlStatusResponse.new_control_status:type_name -> ondewo.csi.ControlStatus
+	17, // 14: ondewo.csi.SetCallMediaControlResponse.applied:type_name -> ondewo.csi.CallMediaControlLevel
+	3,  // 15: ondewo.csi.Condition.type:type_name -> ondewo.csi.ConditionType
+	26, // 16: ondewo.csi.ControlMessageServiceParameters.t2s_config:type_name -> ondewo.t2s.RequestConfig
+	27, // 17: ondewo.csi.ControlMessageServiceParameters.s2t_config:type_name -> ondewo.s2t.TranscribeRequestConfig
+	28, // 18: ondewo.csi.ControlMessageServiceParameters.context:type_name -> ondewo.nlu.Context
+	19, // 19: ondewo.csi.ControlMessageServiceParameters.condition_start:type_name -> ondewo.csi.Condition
+	19, // 20: ondewo.csi.ControlMessageServiceParameters.condition_end:type_name -> ondewo.csi.Condition
+	1,  // 21: ondewo.csi.ControlMessage.service:type_name -> ondewo.csi.ControlMessageServiceName
+	2,  // 22: ondewo.csi.ControlMessage.method:type_name -> ondewo.csi.ControlMessageServiceMethod
+	20, // 23: ondewo.csi.ControlMessage.parameters:type_name -> ondewo.csi.ControlMessageServiceParameters
+	5,  // 24: ondewo.csi.Conversations.CreateS2sPipeline:input_type -> ondewo.csi.S2sPipeline
+	6,  // 25: ondewo.csi.Conversations.GetS2sPipeline:input_type -> ondewo.csi.S2sPipelineId
+	5,  // 26: ondewo.csi.Conversations.UpdateS2sPipeline:input_type -> ondewo.csi.S2sPipeline
+	6,  // 27: ondewo.csi.Conversations.DeleteS2sPipeline:input_type -> ondewo.csi.S2sPipelineId
+	7,  // 28: ondewo.csi.Conversations.ListS2sPipelines:input_type -> ondewo.csi.ListS2sPipelinesRequest
+	9,  // 29: ondewo.csi.Conversations.S2sStream:input_type -> ondewo.csi.S2sStreamRequest
+	29, // 30: ondewo.csi.Conversations.CheckUpstreamHealth:input_type -> google.protobuf.Empty
+	13, // 31: ondewo.csi.Conversations.GetControlStream:input_type -> ondewo.csi.ControlStreamRequest
+	15, // 32: ondewo.csi.Conversations.SetControlStatus:input_type -> ondewo.csi.SetControlStatusRequest
+	17, // 33: ondewo.csi.Conversations.SetCallMediaControl:input_type -> ondewo.csi.CallMediaControlLevel
+	29, // 34: ondewo.csi.Conversations.CreateS2sPipeline:output_type -> google.protobuf.Empty
+	5,  // 35: ondewo.csi.Conversations.GetS2sPipeline:output_type -> ondewo.csi.S2sPipeline
+	29, // 36: ondewo.csi.Conversations.UpdateS2sPipeline:output_type -> google.protobuf.Empty
+	29, // 37: ondewo.csi.Conversations.DeleteS2sPipeline:output_type -> google.protobuf.Empty
+	8,  // 38: ondewo.csi.Conversations.ListS2sPipelines:output_type -> ondewo.csi.ListS2sPipelinesResponse
+	10, // 39: ondewo.csi.Conversations.S2sStream:output_type -> ondewo.csi.S2sStreamResponse
+	12, // 40: ondewo.csi.Conversations.CheckUpstreamHealth:output_type -> ondewo.csi.CheckUpstreamHealthResponse
+	14, // 41: ondewo.csi.Conversations.GetControlStream:output_type -> ondewo.csi.ControlStreamResponse
+	16, // 42: ondewo.csi.Conversations.SetControlStatus:output_type -> ondewo.csi.SetControlStatusResponse
+	18, // 43: ondewo.csi.Conversations.SetCallMediaControl:output_type -> ondewo.csi.SetCallMediaControlResponse
+	34, // [34:44] is the sub-list for method output_type
+	24, // [24:34] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_ondewo_csi_conversation_proto_init() }
@@ -2185,7 +2392,7 @@ func file_ondewo_csi_conversation_proto_init() {
 		(*S2SStreamResponse_SynthesizeResponse)(nil),
 		(*S2SStreamResponse_SipTrigger)(nil),
 	}
-	file_ondewo_csi_conversation_proto_msgTypes[13].OneofWrappers = []any{
+	file_ondewo_csi_conversation_proto_msgTypes[15].OneofWrappers = []any{
 		(*ControlMessageServiceParameters_T2SConfig)(nil),
 		(*ControlMessageServiceParameters_S2TConfig)(nil),
 	}
@@ -2195,7 +2402,7 @@ func file_ondewo_csi_conversation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ondewo_csi_conversation_proto_rawDesc), len(file_ondewo_csi_conversation_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
