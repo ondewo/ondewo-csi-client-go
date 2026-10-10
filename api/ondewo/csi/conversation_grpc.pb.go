@@ -43,6 +43,7 @@ const (
 	Conversations_CheckUpstreamHealth_FullMethodName = "/ondewo.csi.Conversations/CheckUpstreamHealth"
 	Conversations_GetControlStream_FullMethodName    = "/ondewo.csi.Conversations/GetControlStream"
 	Conversations_SetControlStatus_FullMethodName    = "/ondewo.csi.Conversations/SetControlStatus"
+	Conversations_SetCallMediaControl_FullMethodName = "/ondewo.csi.Conversations/SetCallMediaControl"
 )
 
 // ConversationsClient is the client API for Conversations service.
@@ -158,6 +159,20 @@ type ConversationsClient interface {
 	GetControlStream(ctx context.Context, in *ControlStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ControlStreamResponse], error)
 	// <p>Send a message on the control stream to control sip, t2s, s2t etc. during a conversation.</p>
 	SetControlStatus(ctx context.Context, in *SetControlStatusRequest, opts ...grpc.CallOption) (*SetControlStatusResponse, error)
+	// <p>Set the per-call operator media control level: mute the bot and/or pause its listening.</p>
+	//
+	// <p>Pushed by ondewo-sip only, which owns the per-call level and authenticates with its in-container token
+	// (the <code>x-ondewo-sip-in-container-token</code> metadatum). A request without a valid token is refused.</p>
+	//
+	// <p>The request carries the FULL effective level, never a toggle. The server applies it only when its
+	// <code>generation</code> is strictly greater than the last applied generation and otherwise answers
+	// <code>stale=true</code> without changing anything, so a push that arrives after the next call's resync can
+	// never re-apply an old call's level. The level is cleared at <code>CALL_ENDED</code>; the generation is kept.</p>
+	//
+	// <p>This RPC never changes the control status of <code>GetControlStream</code> / <code>SetControlStatus</code>
+	// (the barge-in slot). A level change is announced on the control stream as a
+	// <code>ControlStreamResponse</code> with <code>media_control</code> set.</p>
+	SetCallMediaControl(ctx context.Context, in *CallMediaControlLevel, opts ...grpc.CallOption) (*SetCallMediaControlResponse, error)
 }
 
 type conversationsClient struct {
@@ -264,6 +279,16 @@ func (c *conversationsClient) SetControlStatus(ctx context.Context, in *SetContr
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetControlStatusResponse)
 	err := c.cc.Invoke(ctx, Conversations_SetControlStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *conversationsClient) SetCallMediaControl(ctx context.Context, in *CallMediaControlLevel, opts ...grpc.CallOption) (*SetCallMediaControlResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetCallMediaControlResponse)
+	err := c.cc.Invoke(ctx, Conversations_SetCallMediaControl_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -383,6 +408,20 @@ type ConversationsServer interface {
 	GetControlStream(*ControlStreamRequest, grpc.ServerStreamingServer[ControlStreamResponse]) error
 	// <p>Send a message on the control stream to control sip, t2s, s2t etc. during a conversation.</p>
 	SetControlStatus(context.Context, *SetControlStatusRequest) (*SetControlStatusResponse, error)
+	// <p>Set the per-call operator media control level: mute the bot and/or pause its listening.</p>
+	//
+	// <p>Pushed by ondewo-sip only, which owns the per-call level and authenticates with its in-container token
+	// (the <code>x-ondewo-sip-in-container-token</code> metadatum). A request without a valid token is refused.</p>
+	//
+	// <p>The request carries the FULL effective level, never a toggle. The server applies it only when its
+	// <code>generation</code> is strictly greater than the last applied generation and otherwise answers
+	// <code>stale=true</code> without changing anything, so a push that arrives after the next call's resync can
+	// never re-apply an old call's level. The level is cleared at <code>CALL_ENDED</code>; the generation is kept.</p>
+	//
+	// <p>This RPC never changes the control status of <code>GetControlStream</code> / <code>SetControlStatus</code>
+	// (the barge-in slot). A level change is announced on the control stream as a
+	// <code>ControlStreamResponse</code> with <code>media_control</code> set.</p>
+	SetCallMediaControl(context.Context, *CallMediaControlLevel) (*SetCallMediaControlResponse, error)
 	mustEmbedUnimplementedConversationsServer()
 }
 
@@ -419,6 +458,9 @@ func (UnimplementedConversationsServer) GetControlStream(*ControlStreamRequest, 
 }
 func (UnimplementedConversationsServer) SetControlStatus(context.Context, *SetControlStatusRequest) (*SetControlStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetControlStatus not implemented")
+}
+func (UnimplementedConversationsServer) SetCallMediaControl(context.Context, *CallMediaControlLevel) (*SetCallMediaControlResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetCallMediaControl not implemented")
 }
 func (UnimplementedConversationsServer) mustEmbedUnimplementedConversationsServer() {}
 func (UnimplementedConversationsServer) testEmbeddedByValue()                       {}
@@ -585,6 +627,24 @@ func _Conversations_SetControlStatus_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Conversations_SetCallMediaControl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CallMediaControlLevel)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConversationsServer).SetCallMediaControl(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Conversations_SetCallMediaControl_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConversationsServer).SetCallMediaControl(ctx, req.(*CallMediaControlLevel))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Conversations_ServiceDesc is the grpc.ServiceDesc for Conversations service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -619,6 +679,10 @@ var Conversations_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetControlStatus",
 			Handler:    _Conversations_SetControlStatus_Handler,
+		},
+		{
+			MethodName: "SetCallMediaControl",
+			Handler:    _Conversations_SetCallMediaControl_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

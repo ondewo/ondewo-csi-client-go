@@ -105,7 +105,7 @@ var expectedMethods = map[string][]string{
 	// ServiceDesc.Streams rather than .Methods - the lookup has to consider both.
 	"ondewo.csi.Conversations": {
 		"CreateS2sPipeline", "GetS2sPipeline", "UpdateS2sPipeline", "DeleteS2sPipeline",
-		"ListS2sPipelines", "CheckUpstreamHealth", "SetControlStatus",
+		"ListS2sPipelines", "CheckUpstreamHealth", "SetControlStatus", "SetCallMediaControl",
 		"S2sStream", "GetControlStream",
 	},
 	"ondewo.s2t.Speech2Text": {"TranscribeFile", "TranscribeStream", "GetS2tPipeline", "ListS2tPipelines"},
