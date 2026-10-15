@@ -27,10 +27,8 @@ import (
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	_ "google.golang.org/protobuf/types/known/anypb"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	structpb "google.golang.org/protobuf/types/known/structpb"
-	_ "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -2113,7 +2111,7 @@ var File_ondewo_csi_conversation_proto protoreflect.FileDescriptor
 const file_ondewo_csi_conversation_proto_rawDesc = "" +
 	"\n" +
 	"\x1dondewo/csi/conversation.proto\x12\n" +
-	"ondewo.csi\x1a\x1bgoogle/protobuf/empty.proto\x1a\x17google/rpc/status.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18ondewo/nlu/session.proto\x1a\x1fondewo/t2s/text-to-speech.proto\x1a\x1fondewo/s2t/speech-to-text.proto\x1a\x18ondewo/nlu/context.proto\x1a\x19google/protobuf/any.proto\"\xbf\x01\n" +
+	"ondewo.csi\x1a\x1bgoogle/protobuf/empty.proto\x1a\x17google/rpc/status.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18ondewo/nlu/session.proto\x1a\x1fondewo/t2s/text-to-speech.proto\x1a\x1fondewo/s2t/speech-to-text.proto\x1a\x18ondewo/nlu/context.proto\"\xbf\x01\n" +
 	"\vS2sPipeline\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12&\n" +
 	"\x0fs2t_pipeline_id\x18\x02 \x01(\tR\rs2tPipelineId\x12$\n" +
