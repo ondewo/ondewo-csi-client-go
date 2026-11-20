@@ -2,6 +2,15 @@
 
 *****************
 
+## Release ONDEWO CSI Go Client 5.9.0
+
+### Improvements
+
+* Tracking API Version [5.9.0](https://github.com/ondewo/ondewo-csi-api/releases/tag/5.9.0) ( [Documentation](https://ondewo.github.io/ondewo-csi-api/) )
+* Generated with ondewo-proto-compiler 5.17.0; new runtime floors: `google.golang.org/grpc` v1.85.0, `google.golang.org/protobuf` v1.36.12, genproto v0.0.0-20261116203732-fd2c7689a808, `go 1.26.0`.
+
+*****************
+
 ## Release ONDEWO CSI Go Client 5.7.0
 
 ### Improvements
